@@ -284,7 +284,7 @@ void ADonNavigationManager::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void ADonNavigationManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {	
-	UProperty* PropertyThatChanged = PropertyChangedEvent.Property;
+	auto PropertyThatChanged = PropertyChangedEvent.Property;
 	FName PropertyName = PropertyThatChanged != NULL ? PropertyThatChanged->GetFName() : NAME_None;
 	
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ADonNavigationManager, bDisplayWorldBoundary))
