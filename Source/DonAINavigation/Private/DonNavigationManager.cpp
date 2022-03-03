@@ -284,7 +284,7 @@ void ADonNavigationManager::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void ADonNavigationManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {	
-	UProperty* PropertyThatChanged = PropertyChangedEvent.Property;
+	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 	FName PropertyName = PropertyThatChanged != NULL ? PropertyThatChanged->GetFName() : NAME_None;
 	
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ADonNavigationManager, bDisplayWorldBoundary))
@@ -1679,7 +1679,7 @@ FDonNavigationVoxel* ADonNavigationManager::ResolveVolume(FVector &DesiredLocati
 
 				//DrawDebugSphere_Safe(GetWorld(), locationToSample, 6.f, 16, FColor::Yellow, false, 5.f);
 
-				auto volume = VolumeAt(locationToSample);
+				volume = VolumeAt(locationToSample);
 				if (!volume || !CanNavigate(volume))
 					continue;
 
@@ -2836,7 +2836,7 @@ FVector ADonNavigationManager::FindRandomPointAroundOriginInNavWorld(AActor* Nav
 	for (int32 i = 0; i < MaxAttempts; i++)
 	{
 		float maxZAngularDispacement = FMath::Abs(MaxZAngularDispacement);
-		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0, 360), FMath::FRandRange(0, 360));
+		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0.f, 360.f), FMath::FRandRange(0.f, 360.f));
 		newDestination = Origin + newDirection.RotateVector(baseDisplacement);
 
 		if (MaxDesiredAltitude != -1.f)
