@@ -38,7 +38,7 @@ ADonNavigationManager::ADonNavigationManager(const FObjectInitializer& ObjectIni
 {
 	// Scene Component
 	SceneComponent = ObjectInitializer.CreateDefaultSubobject<USceneComponent>(this, TEXT("SceneComp"));
-	SceneComponent->Mobility = EComponentMobility::Static;
+	SceneComponent->Mobility = EComponentMobility::Movable;
 	RootComponent = SceneComponent;
 
 	Billboard = ObjectInitializer.CreateDefaultSubobject<UBillboardComponent>(this, TEXT("Billboard"));	
@@ -127,6 +127,9 @@ static void DrawDebugVoxel(const UWorld* InWorld, FVector const& Center, FVector
 void ADonNavigationManager::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);	
+
+	if (!IsInitilized)
+		return;
 
 	if (!bMultiThreadingEnabled)
 	{
@@ -221,6 +224,17 @@ void ADonNavigationManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!IgnoreInitOnBeginPlay)
+	{
+		Init();
+	}
+}
+
+void ADonNavigationManager::Init()
+{
+	if (IsInitilized)
+		return;	
+
 	UWorld* const World = GetWorld();
 
 	if (!World)
@@ -230,7 +244,7 @@ void ADonNavigationManager::BeginPlay()
 	VoxelCollisionShape = FCollisionShape::MakeBox(NavVolumeExtent());
 
 	VoxelCollisionQueryParams = FCollisionQueryParams(FName("DonCollisionQuery", false)); // trace complex = false	
-	VoxelCollisionQueryParams.AddIgnoredActors(ActorsToIgnoreForCollision);	
+	VoxelCollisionQueryParams.AddIgnoredActors(ActorsToIgnoreForCollision);
 
 	VoxelCollisionQueryParams2 = FCollisionQueryParams(VoxelCollisionQueryParams);
 	VoxelCollisionQueryParams2.bFindInitialOverlaps = false;
@@ -251,6 +265,8 @@ void ADonNavigationManager::BeginPlay()
 	// Spawn dedicated worker thread:
 	if (bMultiThreadingEnabled)
 		WorkerThread = new FDonNavigationWorker(this, MaxPathSolverIterationsOnThread, MaxCollisionSolverIterationsOnThread);
+
+	IsInitilized = true;
 }
 
 void ADonNavigationManager::RefreshPerformanceSettings()
@@ -2112,7 +2128,7 @@ bool ADonNavigationManager::SchedulePathfindingTask(AActor* Actor, FVector Desti
 
 	if (!bIsUnbound && !IsLocationWithinNavigableWorld(Destination))
 	{
-		UE_LOG(DoNNavigationLog, Error, TEXT("Destination %s is outside world bounds. Please clamp your destination within the navigable world or expand world size under settings if necessary."), *Destination.ToString());
+		//UE_LOG(DoNNavigationLog, Error, TEXT("Destination %s is outside world bounds. Please clamp your destination within the navigable world or expand world size under settings if necessary."), *Destination.ToString());
 
 		return false;
 	}

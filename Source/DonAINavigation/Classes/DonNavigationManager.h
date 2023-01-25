@@ -753,20 +753,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Startup")
 	bool PerformCollisionChecksOnStartup;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "IgnoreInitOnBeginPlay", ExposeOnSpawn = true), Category = "Game Startup")
+	bool IgnoreInitOnBeginPlay;
+
 	// Performance settings - Bound worlds (if multi-threading is enabled, these will be overwritten at BeginPlay with the values in the next section!)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MultiThreadingEnabled", ExposeOnSpawn = true), Category = "Performance Settings")
 	bool bMultiThreadingEnabled = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxPathSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxPathSolverIterationsPerTick = 500;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxCollisionSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxCollisionSolverIterationsPerTick = 250;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxPathSolverIterationsOnThread = 1000;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxCollisionSolverIterationsOnThread = 500;
 
 	// Performance settings - Infinite worlds
@@ -788,6 +791,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void ConstructBuilder();
 	
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Init();
+
+private:
+	bool IsInitilized;
+
+public:
 	// Debug Visualization:
 	UPROPERTY()
 	UBoxComponent* WorldBoundaryVisualizer;
@@ -823,10 +833,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")	
 	void Debug_ClearAllVolumes();
 
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void Debug_RecalculateWorldBounds()
 	{
 		WorldBoundaryVisualizer->SetRelativeLocation(WorldBoundsExtent());
 		WorldBoundaryVisualizer->SetBoxExtent(WorldBoundsExtent());
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Debug_RefreshWorldboundaryVisibility()
+	{
+		WorldBoundaryVisualizer->SetVisibility(bDisplayWorldBoundary);
 	}
 
 private:
