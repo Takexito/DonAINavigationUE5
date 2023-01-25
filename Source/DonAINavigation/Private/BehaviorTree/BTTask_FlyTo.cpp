@@ -89,16 +89,26 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		LastRequestTimestamps.Add(pawn, currentTime); //LastRequestTimestamp = currentTime;
 		*/
 	NavigationManager =  UDonNavigationHelper::DonNavigationManagerForActor(pawn);
-	if (!NavigationManager || (NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery))
-		return EBTNodeResult::Failed; // early exit instead of going through the manager's internal checks and fallback via HandleTaskFailure (which isn't appropriate here)
-	
 	// Validate internal state:
 	if (!pawn || !myMemory || !blackboard || !NavigationManager)
 	{
-		UE_LOG(DoNNavigationLog, Log, TEXT("BTTask_FlyTo has invalid data for AI Pawn or NodeMemory or NavigationManager. Unable to proceed."));
-
+		if(!pawn){
+			UE_LOG(DoNNavigationLog, Log, TEXT("Pawn invalid"));
+		}
+		if(!myMemory){
+			UE_LOG(DoNNavigationLog, Log, TEXT("NodeMemory invalid"));
+		}
+		if(!blackboard){
+			UE_LOG(DoNNavigationLog, Log, TEXT("Blackboard invalid"));
+		}
+		if(!NavigationManager){
+			UE_LOG(DoNNavigationLog, Log, TEXT("NavigationManager invalid"));
+		}
 		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
 	}
+
+	if (!NavigationManager || NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery)
+		return EBTNodeResult::Failed; // early exit instead of going through the manager's internal checks and fallback via HandleTaskFailure (which isn't appropriate here)
 	
 	// Validate blackboard key data:
 	if(FlightLocationKey.SelectedKeyType != UBlackboardKeyType_Vector::StaticClass())
@@ -552,7 +562,7 @@ bool UBTTask_FlyTo::TeleportAndExit(UBehaviorTreeComponent& OwnerComp, bool bWra
 		bool bLocationValid = !NavigationManager->IsLocationBeneathLandscape(flightDestination);
 		if(bLocationValid)
 		{
-			FVector flightDestination = blackboard->GetValueAsVector(FlightLocationKey.SelectedKeyName);
+			flightDestination = blackboard->GetValueAsVector(FlightLocationKey.SelectedKeyName);
 			pawn->SetActorLocation(flightDestination, false);
 			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::White, FString::Printf(TEXT("%s teleported, being unable to find pathfind aerially!"), pawn ? *pawn->GetName() : *FString("")));
 			bTeleportSuccess = true;
