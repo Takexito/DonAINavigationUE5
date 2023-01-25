@@ -107,7 +107,7 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
 	}
 
-	if (NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery)
+	if (!NavigationManager || NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery)
 		return EBTNodeResult::Failed; // early exit instead of going through the manager's internal checks and fallback via HandleTaskFailure (which isn't appropriate here)
 	
 	// Validate blackboard key data:
@@ -125,6 +125,12 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 	myMemory->QueryParams.CustomDelegatePayload = &myMemory->Metadata;
 	myMemory->bIsANavigator = pawn->GetClass()->ImplementsInterface(UDonNavigator::StaticClass());
 
+	if (!myMemory->Metadata.OwnerComp->IsValidLowLevel())
+	{
+		UE_LOG(DoNNavigationLog, Log, TEXT("No OwnerComp. Aborting task..."));
+		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
+	}
+	
 	FVector flightDestination = blackboard->GetValueAsVector(FlightLocationKey.SelectedKeyName);
 	myMemory->TargetLocation = flightDestination;
 
@@ -171,8 +177,14 @@ FBT_FlyToTarget* UBTTask_FlyTo::TaskMemoryFromGenericPayload(void* GenericPayloa
 	// inside which we store the pathfinding results.
 
 	auto payload = static_cast<FBT_FlyToTarget_Metadata*> (GenericPayload);
-	auto ownerComp = (payload && payload->OwnerComp.IsValid()) ? payload->OwnerComp.Get() : NULL;
+	auto ownerComp = (payload && payload->OwnerComp.IsValid() && !payload->OwnerComp.IsStale()) ? payload->OwnerComp.Get() : NULL;
 
+	if (payload->OwnerComp.IsStale())
+	{
+		UE_LOG(DoNNavigationLog, Log, TEXT("STALE !!!!!!!!!..."));
+
+		return nullptr;
+	}
 	// Is the pawn's BrainComponent still alive and valid?
 	if (!ownerComp)
 		return NULL;
@@ -193,20 +205,24 @@ FBT_FlyToTarget* UBTTask_FlyTo::TaskMemoryFromGenericPayload(void* GenericPayloa
 }
 
 void UBTTask_FlyTo::Pathfinding_OnFinish(const FDoNNavigationQueryData& Data)
-{	
+{
 	auto myMemory = TaskMemoryFromGenericPayload(Data.QueryParams.CustomDelegatePayload);
-	if (!myMemory)
+	if (myMemory == nullptr || myMemory->Metadata.OwnerComp == nullptr)
 		return;
-
-	auto ownerComp = myMemory->Metadata.OwnerComp.Get();
 
 	// Store query results:	
 	myMemory->QueryResults = Data;
+	
+	TWeakObjectPtr<UBehaviorTreeComponent> ownerComp = myMemory->Metadata.OwnerComp;
 
 	// Validate results:
-	if (!Data.PathSolutionOptimized.Num())
+	TArray<FVector> arrayCopy = Data.PathSolutionOptimized;
+	int num = arrayCopy.Num();
+	bool compareStatus = Data.QueryStatus != EDonNavigationQueryStatus::Success;
+	
+	if (compareStatus && num <= 0)
 	{
-		if (bTeleportToDestinationUponFailure && ownerComp)
+		if (bTeleportToDestinationUponFailure && ownerComp.IsValid())
 		{
 			TeleportAndExit(*ownerComp, false);
 			myMemory->QueryResults.QueryStatus = EDonNavigationQueryStatus::Success;
@@ -223,7 +239,7 @@ void UBTTask_FlyTo::Pathfinding_OnFinish(const FDoNNavigationQueryData& Data)
 	// Inform pawn owner that we're about to start locomotion!
 	if (myMemory->bIsANavigator)
 	{
-		if (!ownerComp)
+		if (ownerComp.IsValid())
 			return;
 
 		APawn* pawn = ownerComp->GetAIOwner()->GetPawn();
@@ -253,6 +269,12 @@ void UBTTask_FlyTo::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemor
 	APawn* pawn = OwnerComp.GetAIOwner()->GetPawn();
 	NavigationManager = UDonNavigationHelper::DonNavigationManagerForActor(pawn);	
 
+	if (NavigationManager == nullptr)
+	{
+		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+		return;
+	}
+	
 	if (EDonNavigationQueryStatus::InProgress == myMemory->QueryResults.QueryStatus)
 		return;
 

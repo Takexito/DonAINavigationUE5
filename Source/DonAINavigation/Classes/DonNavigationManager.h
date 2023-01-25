@@ -405,6 +405,7 @@ struct FDoNNavigationQueryData
 	TArray<FDonNavigationVoxel*> VolumeSolution;
 	TArray<FDonNavigationVoxel*> VolumeSolutionOptimized;
 
+	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
 	TArray<FVector> PathSolutionRaw;	
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
