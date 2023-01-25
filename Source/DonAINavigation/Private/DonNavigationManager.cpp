@@ -1678,7 +1678,7 @@ FDonNavigationVoxel* ADonNavigationManager::ResolveVolume(FVector &DesiredLocati
 
 				//DrawDebugSphere_Safe(GetWorld(), locationToSample, 6.f, 16, FColor::Yellow, false, 5.f);
 
-				auto volume = VolumeAt(locationToSample);
+				volume = VolumeAt(locationToSample);
 				if (!volume || !CanNavigate(volume))
 					continue;
 
@@ -2850,7 +2850,7 @@ FVector ADonNavigationManager::FindRandomPointAroundOriginInNavWorld(AActor* Nav
 	for (int32 i = 0; i < MaxAttempts; i++)
 	{
 		float maxZAngularDispacement = FMath::Abs(MaxZAngularDispacement);
-		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0, 360), FMath::FRandRange(0, 360));
+		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0.f, 360.f), FMath::FRandRange(0.f, 360.f));
 		newDestination = Origin + newDirection.RotateVector(baseDisplacement);
 
 		if (MaxDesiredAltitude != -1.f)
