@@ -20,8 +20,6 @@
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
-#elif PLATFORM_XBOXONE
-#include "XboxOneAllowPlatformTypes.h"
 #endif
 
 
@@ -50,7 +48,7 @@ namespace DoNNavigation
 	// Eg: For profiling initial collision sampling on map load, etc
 	static FORCEINLINE uint64 Debug_GetTimeMs64()
 	{
-#if PLATFORM_WINDOWS || PLATFORM_XBOXONE
+#if PLATFORM_WINDOWS
 		/* Windows */
 		FILETIME ft;
 		LARGE_INTEGER li;
