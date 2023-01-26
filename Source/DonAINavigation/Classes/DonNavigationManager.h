@@ -362,10 +362,10 @@ struct FDoNNavigationQueryData
 	TWeakObjectPtr<class UPrimitiveComponent> CollisionComponent;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
-	FVector Origin;
+	FVector Origin = FVector::ZeroVector;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
-	FVector Destination;	
+	FVector Destination = FVector::ZeroVector;	
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
 	FDoNNavigationQueryParams QueryParams;
@@ -1019,17 +1019,20 @@ public:
 	/** Clamps a vector within the navigation bounds, as defined by the grid configuration of the navigation object you've placed in the map,
 	 *   brought in by a margin of InnerMarginOffset when clamping downward to prevent rounding errors */
 	UFUNCTION(BlueprintPure, Category = "DoN Navigation")
-	FVector ClampLocationToNavigableWorld(FVector DesiredLocation, float InnerMarginOffset = 0.001f)
+	FVector ClampLocationToNavigableWorld(FVector DesiredLocation, float InnerOffsetXY = 100.0F, float InnerOffsetZ = 10.0F)
 	{
 		if (bIsUnbound)
 			return DesiredLocation;
 
-		FVector origin = GetActorLocation();
-		// When clamping down, bring the vector in by an extra InnerMarginOffset cm. Necessary because VolumeIdAt does a float-to-int rounding, and thus clamping
-		//  to a max world dimension would otherwise round to an invalid index (e.g. rounding 100.5 to invalid index 100 instead of 99 in a 100-voxel world)
-		float xClamped = FMath::Clamp(DesiredLocation.X, origin.X, origin.X + XGridSize * VoxelSize - InnerMarginOffset);
-		float yClamped = FMath::Clamp(DesiredLocation.Y, origin.Y, origin.Y + YGridSize * VoxelSize - InnerMarginOffset);
-		float zClamped = FMath::Clamp(DesiredLocation.Z, origin.Z, origin.Z + ZGridSize * VoxelSize - InnerMarginOffset);
+		const FVector& origin = GetActorLocation();
+
+        const float MaxX = static_cast<float>(XGridSize) * VoxelSize;
+        const float MaxY = static_cast<float>(YGridSize) * VoxelSize;
+        const float MaxZ = static_cast<float>(ZGridSize) * VoxelSize;
+
+		const double xClamped = FMath::Clamp(DesiredLocation.X, origin.X + InnerOffsetXY, origin.X + MaxX - InnerOffsetXY);
+		const double yClamped = FMath::Clamp(DesiredLocation.Y, origin.Y + InnerOffsetXY, origin.Y + MaxY - InnerOffsetXY);
+		const double zClamped = FMath::Clamp(DesiredLocation.Z, origin.Z + InnerOffsetZ, origin.Z + MaxZ - InnerOffsetZ);
 
 		return FVector(xClamped, yClamped, zClamped);
 	}
@@ -1042,9 +1045,9 @@ public:
 
 		const FVector origin = GetActorLocation();
 
-		return  DesiredLocation.X >= origin.X && DesiredLocation.X <= (origin.X + XGridSize * VoxelSize) &&
-					DesiredLocation.Y >= origin.Y && DesiredLocation.Y <= (origin.Y + YGridSize * VoxelSize) &&
-					DesiredLocation.Z >= origin.Z && DesiredLocation.Z <= (origin.Z + ZGridSize * VoxelSize);
+		return  DesiredLocation.X >= origin.X && DesiredLocation.X <= (    origin.X + static_cast<float>(XGridSize) * VoxelSize) &&
+					DesiredLocation.Y >= origin.Y && DesiredLocation.Y <= (origin.Y + static_cast<float>(YGridSize) * VoxelSize) &&
+					DesiredLocation.Z >= origin.Z && DesiredLocation.Z <= (origin.Z + static_cast<float>(ZGridSize) * VoxelSize);
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////
