@@ -17,6 +17,9 @@
 
 #include "DonNavigationManager.h"
 
+DECLARE_STATS_GROUP(TEXT("DonNavigation"), STATGROUP_DonNavigationWorker, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("Worker Time"), STAT_DonNavigationWorkerTime, STATGROUP_DonNavigationWorker);
+
 FDonNavigationWorker::FDonNavigationWorker()
 {
 
@@ -61,13 +64,17 @@ uint32 FDonNavigationWorker::Run()
 
 	while (StopTaskCounter.GetValue() == 0)
 	{
-		//Manager->ReceiveAsyncAbortRequests();
-		Manager->ReceiveAsyncNavigationTasks();		
-		Manager->ReceiveAsyncCollisionTasks();
+		{
+			SCOPE_CYCLE_COUNTER(STAT_DonNavigationWorkerTime);
 
-		SolveNavigationTasks();
+			//Manager->ReceiveAsyncAbortRequests();
+			Manager->ReceiveAsyncNavigationTasks();
+			Manager->ReceiveAsyncCollisionTasks();
 
-		//FPlatformProcess::Sleep(0.2f);
+			SolveNavigationTasks();
+		}
+
+		FPlatformProcess::Sleep(0.01f);
 	}
 	return 0;
 }

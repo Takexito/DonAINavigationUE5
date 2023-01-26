@@ -405,6 +405,7 @@ struct FDoNNavigationQueryData
 	TArray<FDonNavigationVoxel*> VolumeSolution;
 	TArray<FDonNavigationVoxel*> VolumeSolutionOptimized;
 
+	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
 	TArray<FVector> PathSolutionRaw;	
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
@@ -752,20 +753,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Startup")
 	bool PerformCollisionChecksOnStartup;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "IgnoreInitOnBeginPlay", ExposeOnSpawn = true), Category = "Game Startup")
+	bool IgnoreInitOnBeginPlay;
+
 	// Performance settings - Bound worlds (if multi-threading is enabled, these will be overwritten at BeginPlay with the values in the next section!)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MultiThreadingEnabled", ExposeOnSpawn = true), Category = "Performance Settings")
 	bool bMultiThreadingEnabled = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxPathSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxPathSolverIterationsPerTick = 500;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxCollisionSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxCollisionSolverIterationsPerTick = 250;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxPathSolverIterationsOnThread = 1000;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxCollisionSolverIterationsOnThread = 500;
 
 	// Performance settings - Infinite worlds
@@ -787,6 +791,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void ConstructBuilder();
 	
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Init();
+
+private:
+	bool IsInitilized;
+
+public:
 	// Debug Visualization:
 	UPROPERTY()
 	UBoxComponent* WorldBoundaryVisualizer;
@@ -822,10 +833,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")	
 	void Debug_ClearAllVolumes();
 
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void Debug_RecalculateWorldBounds()
 	{
 		WorldBoundaryVisualizer->SetRelativeLocation(WorldBoundsExtent());
 		WorldBoundaryVisualizer->SetBoxExtent(WorldBoundsExtent());
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Debug_RefreshWorldboundaryVisibility()
+	{
+		WorldBoundaryVisualizer->SetVisibility(bDisplayWorldBoundary);
 	}
 
 private:
@@ -1059,6 +1077,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")		
 	bool SchedulePathfindingTask(AActor* Actor, FVector Destination, UPARAM(ref) const FDoNNavigationQueryParams& QueryParams, UPARAM(ref) const FDoNNavigationDebugParams& DebugParams, FDoNNavigationResultHandler ResultHandlerDelegate, FDonNavigationDynamicCollisionDelegate DynamicCollisionListener);
+
+	/**
+	* Same as SchedulePathfindingTask(...) but specifying the Origin instead of the ActorLocation
+	* TODO Refacto. The actual implementation is a silly copy of SchedulePathfindingTask(..)
+	*/
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	bool SchedulePathfindingTaskFromOrigin(AActor* Actor, FVector Origin, FVector Destination, UPARAM(ref) const FDoNNavigationQueryParams& QueryParams, UPARAM(ref) const FDoNNavigationDebugParams& DebugParams, FDoNNavigationResultHandler ResultHandlerDelegate, FDonNavigationDynamicCollisionDelegate DynamicCollisionListener);
 
 	/** Aborts an existing pathfinding task for a given Actor */
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
