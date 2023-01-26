@@ -1075,6 +1075,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")		
 	bool SchedulePathfindingTask(AActor* Actor, FVector Destination, UPARAM(ref) const FDoNNavigationQueryParams& QueryParams, UPARAM(ref) const FDoNNavigationDebugParams& DebugParams, FDoNNavigationResultHandler ResultHandlerDelegate, FDonNavigationDynamicCollisionDelegate DynamicCollisionListener);
 
+	/**
+	* Same as SchedulePathfindingTask(...) but specifying the Origin instead of the ActorLocation
+	* TODO Refacto. The actual implementation is a silly copy of SchedulePathfindingTask(..)
+	*/
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	bool SchedulePathfindingTaskFromOrigin(AActor* Actor, FVector Origin, FVector Destination, UPARAM(ref) const FDoNNavigationQueryParams& QueryParams, UPARAM(ref) const FDoNNavigationDebugParams& DebugParams, FDoNNavigationResultHandler ResultHandlerDelegate, FDonNavigationDynamicCollisionDelegate DynamicCollisionListener);
+
 	/** Aborts an existing pathfinding task for a given Actor */
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void AbortPathfindingTask(AActor* Actor);

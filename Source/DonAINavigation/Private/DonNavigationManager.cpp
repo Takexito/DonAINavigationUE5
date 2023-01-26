@@ -2244,6 +2244,135 @@ bool ADonNavigationManager::SchedulePathfindingTask(AActor* Actor, FVector Desti
 	return true;
 }
 
+bool ADonNavigationManager::SchedulePathfindingTaskFromOrigin(AActor* Actor, FVector Origin, FVector Destination, UPARAM(ref) const FDoNNavigationQueryParams& QueryParams, UPARAM(ref) const FDoNNavigationDebugParams& DebugParams, FDoNNavigationResultHandler ResultHandlerDelegate, FDonNavigationDynamicCollisionDelegate DynamicCollisionListener)
+{
+	UPrimitiveComponent* CollisionComponent = Actor ? Cast<UPrimitiveComponent>(Actor->GetRootComponent()) : NULL;
+
+	// Input Validations - I
+	if (!Actor || !CollisionComponent)
+	{
+		FString collisionComponentLog = CollisionComponent ? *CollisionComponent->GetName() : *FString("Invalid");
+		UE_LOG(DoNNavigationLog, Error, TEXT("%s"), *FString::Printf(TEXT("Invalid input parameters received. Actor: %s CollisionComponent: %s"), Actor ? *Actor->GetName() : *FString("Invalid"), *collisionComponentLog));
+
+		return false;
+	}
+
+	if (!bIsUnbound && !IsLocationWithinNavigableWorld(Destination))
+	{
+		UE_LOG(DoNNavigationLog, Error, TEXT("Destination %s is outside world bounds. Please clamp your destination within the navigable world or expand world size under settings if necessary."), *Destination.ToString());
+
+		return false;
+	}
+
+	// Does this actor already have a running query scheduled with us?
+	if (HasTask(Actor))
+	{
+		if (QueryParams.bForceRescheduleQuery)
+		{
+			// Aborts the existing task and removes it from the active task list
+			CleanupExistingTaskForActor(Actor);
+		}
+		else
+		{
+			UE_LOG(DoNNavigationLog, Warning, TEXT("%s"), *FString::Printf(TEXT("%s already has an active task. If you really need to force reschedule a new task, set bForceRescheduleQuery to true in query params."), Actor ? *Actor->GetName() : *FString("Invalid")));
+
+			return false;
+		}
+	}
+
+	// Do we have direct access to the goal?
+	FHitResult hitResult;
+	const bool bFindInitialOverlaps = true;
+	if (IsDirectPathLineSweep(CollisionComponent, Origin, Destination, hitResult, bFindInitialOverlaps))
+	{
+		FDonNavigationQueryTask task(FDoNNavigationQueryData(Actor, CollisionComponent, Origin, Destination, QueryParams, DebugParams, bIsUnbound ? NULL : VolumeAt(Origin), bIsUnbound ? NULL : VolumeAt(Destination), Origin, Destination, FDonVoxelCollisionProfile()), ResultHandlerDelegate, DynamicCollisionListener);
+
+		PackageDirectSolution(task);
+
+		VisualizeSolution(task.Data.Origin, task.Data.Destination, task.Data.PathSolutionRaw, task.Data.PathSolutionOptimized, task.Data.DebugParams);
+
+		// call success delegate immediately
+		task.Data.QueryStatus = EDonNavigationQueryStatus::Success;
+		task.ResultHandler.ExecuteIfBound(task.Data);
+
+		UE_LOG(DoNNavigationLog, Verbose, TEXT("Query for %s, %s solved via simple direct pathing"), *task.Data.GetActorName(), *task.Data.Destination.ToString(), task.Data.SolverTimeTaken);
+
+		return true;
+	}
+
+	// Input Visualization - I
+	if (DebugParams.DrawDebugVolumes)
+	{
+		DrawDebugPoint_Safe(GetWorld(), Origin, 20.f, FColor::White, true, -1.f);
+		DrawDebugPoint_Safe(GetWorld(), Destination, 20.f, FColor::Green, true, -1.f);
+	}
+
+	FDonNavigationVoxel* originVolume = NULL;
+	FDonNavigationVoxel* destinationVolume = NULL;
+
+	FVector resolvedOriginCenter = VolumeOriginAt(Origin);
+	FVector resolvedDestinationCenter = VolumeOriginAt(Destination);
+
+	bool bResolvedOrigin = false;
+	bool bResolvedDestination = false;
+
+	if (!bIsUnbound)
+	{
+		// Resolve origin and destination volumes
+		originVolume = ResolveVolume(Origin, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+		destinationVolume = ResolveVolume(Destination, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+
+		// Input Visualization - II
+		if (DebugParams.DrawDebugVolumes)
+		{
+			if (originVolume)
+				DrawDebugVoxel_Safe(GetWorld(), originVolume->Location, NavVolumeExtent(), FColor::White, false, 0.13f, 0, DebugVoxelsLineThickness);
+
+			if (destinationVolume)
+				DrawDebugVoxel_Safe(GetWorld(), destinationVolume->Location, NavVolumeExtent(), FColor::Green, false, 0.13f, 0, DebugVoxelsLineThickness);
+		}
+	}
+	else
+	{
+		bResolvedOrigin = ResolveVector(Origin, resolvedOriginCenter, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+		bResolvedDestination = ResolveVector(Destination, resolvedDestinationCenter, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+	}
+
+	// Input Validations - II
+	if ((!bIsUnbound && (!originVolume || !destinationVolume)) || (bIsUnbound && (!bResolvedOrigin || !bResolvedDestination)))
+	{
+		InvalidVolumeErrorLog(originVolume, destinationVolume, Origin, Destination);
+
+		return false;
+	}
+
+	// Flexible Origin adaptation:
+	if (Origin != Actor->GetActorLocation())
+	{
+		UE_LOG(DoNNavigationLog, Warning, TEXT("Forcibly moving %s to new origin for viable pathfinding. (Can be disabled in QueryParams)"), *Actor->GetName());
+		Actor->SetActorLocation(Origin, false);
+	}
+
+	// Load voxel collision profile:
+	bool bResultIsValid = false;
+	const bool bIgnoreMeshOriginOccupancy = true;
+	auto voxelCollisionProfile = GetVoxelCollisionProfileFromMesh(FDonMeshIdentifier(CollisionComponent), bResultIsValid, VoxelCollisionProfileCache_GameThread, bIgnoreMeshOriginOccupancy);
+
+	// Prepare task:
+	FDonNavigationQueryTask request = FDonNavigationQueryTask(
+		FDoNNavigationQueryData(Actor, CollisionComponent, Origin, Destination, QueryParams, DebugParams, originVolume, destinationVolume, resolvedOriginCenter, resolvedDestinationCenter, voxelCollisionProfile),
+		ResultHandlerDelegate,
+		DynamicCollisionListener
+	);
+
+	request.Data.QueryStatus = EDonNavigationQueryStatus::InProgress;
+
+	// Schedule this task
+	AddPathfindingTask(request);
+
+	return true;
+}
+
 void ADonNavigationManager::AddPathfindingTask(const FDonNavigationQueryTask& Task)
 {
 	if (!bMultiThreadingEnabled)
