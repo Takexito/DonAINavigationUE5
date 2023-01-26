@@ -32,7 +32,8 @@ UBTTask_FlyTo::UBTTask_FlyTo(const FObjectInitializer& ObjectInitializer)
 {
 	NodeName = "Fly To";
 	bNotifyTick = true;
-	
+	bNotifyTaskFinished = true;
+
 	FlightLocationKey.AddVectorFilter(this,		    GET_MEMBER_NAME_CHECKED(UBTTask_FlyTo, FlightLocationKey));
 	FlightResultKey.AddBoolFilter(this,				GET_MEMBER_NAME_CHECKED(UBTTask_FlyTo, FlightResultKey));
 	KeyToFlipFlopWhenTaskExits.AddBoolFilter(this,  GET_MEMBER_NAME_CHECKED(UBTTask_FlyTo, KeyToFlipFlopWhenTaskExits));
@@ -89,6 +90,14 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		LastRequestTimestamps.Add(pawn, currentTime); //LastRequestTimestamp = currentTime;
 		*/
 	NavigationManager =  UDonNavigationHelper::DonNavigationManagerForActor(pawn);
+	if (!NavigationManager)
+	{
+		UE_LOG(DoNNavigationLog, Error, TEXT("BTTask_FlyTo did not find NavigationManager for the pawn."));
+		return EBTNodeResult::Failed;
+	}
+	if (NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery)
+		return EBTNodeResult::Failed; // early exit instead of going through the manager's internal checks and fallback via HandleTaskFailure (which isn't appropriate here)
+	
 	// Validate internal state:
 	if (!pawn || !myMemory || !blackboard || !NavigationManager)
 	{
@@ -106,9 +115,6 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		}
 		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
 	}
-
-	if (!NavigationManager || NavigationManager->HasTask(pawn) && !QueryParams.bForceRescheduleQuery)
-		return EBTNodeResult::Failed; // early exit instead of going through the manager's internal checks and fallback via HandleTaskFailure (which isn't appropriate here)
 	
 	// Validate blackboard key data:
 	if(FlightLocationKey.SelectedKeyType != UBlackboardKeyType_Vector::StaticClass())
