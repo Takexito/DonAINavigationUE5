@@ -2,14 +2,14 @@
 //
 // Copyright(c) 2015 Venugopalan Sreedharan
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files(the "Software"), 
-// to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files(the "Software"),
+// to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 // and / or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
 //
 // The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "BehaviorTree/BTTask_FlyTo.h"
@@ -25,7 +25,7 @@
 #include "Runtime/AIModule/Classes/AIController.h"
 #include "VisualLogger/VisualLogger.h"
 
-UBTTask_FlyTo::UBTTask_FlyTo(const FObjectInitializer& ObjectInitializer) 
+UBTTask_FlyTo::UBTTask_FlyTo(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bRecalcPathOnDestinationChanged(false)
 	, RecalculatePathTolerance(50.f)
@@ -51,7 +51,7 @@ void UBTTask_FlyTo::InitializeFromAsset(UBehaviorTree& Asset)
 	auto blackboard = GetBlackboardAsset();
 	if (!blackboard)
 		return;
-	
+
 	FlightGoalKey.ResolveSelectedKey(*blackboard);
 }
 
@@ -114,6 +114,8 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		if(!NavigationManager){
 			UE_LOG(DoNNavigationLog, Log, TEXT("NavigationManager invalid"));
 		}
+		UE_LOG(DoNNavigationLog, Log, TEXT("BTTask_FlyTo has invalid data for AI Pawn or NodeMemory or NavigationManager. Unable to proceed."));
+
 		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
 	}
 	
@@ -123,9 +125,9 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 		UE_LOG(DoNNavigationLog, Log, TEXT("Invalid FlightGoalKey. Expected Vector or Actor Object type, found %s"), *(FlightGoalKey.SelectedKeyType ? FlightGoalKey.SelectedKeyType->GetName() : FString("?")));
 		return HandleTaskFailure(OwnerComp, NodeMemory, blackboard);
 	}
-	
+
 	// Prepare input:
-	myMemory->Reset();	
+	myMemory->Reset();
 	myMemory->Metadata.ActiveInstanceIdx = OwnerComp.GetActiveInstanceIdx();
 	myMemory->Metadata.OwnerComp = &OwnerComp;
 	myMemory->QueryParams = QueryParams;
@@ -168,7 +170,7 @@ EBTNodeResult::Type UBTTask_FlyTo::SchedulePathfindingRequest(UBehaviorTreeCompo
 	FDoNNavigationResultHandler resultHandler;
 	resultHandler.BindDynamic(this, &UBTTask_FlyTo::Pathfinding_OnFinish);
 
-	// Bind dynamic collision updates delegate:		
+	// Bind dynamic collision updates delegate:
 	myMemory->DynamicCollisionListener.BindDynamic(this, &UBTTask_FlyTo::Pathfinding_OnDynamicCollisionAlert);
 
 	// Schedule task:
@@ -192,7 +194,7 @@ void UBTTask_FlyTo::AbortPathfindingRequest(UBehaviorTreeComponent& OwnerComp, u
 	{
 		NavigationManager->AbortPathfindingTask(pawn);
 
-		// Unregister all dynamic collision listeners. We've completed our task and are no longer interested in listening to these:		
+		// Unregister all dynamic collision listeners. We've completed our task and are no longer interested in listening to these:
 		NavigationManager->StopListeningToDynamicCollisionsForPath(myMemory->DynamicCollisionListener, myMemory->QueryResults);
 	}
 }
@@ -203,7 +205,7 @@ FBT_FlyToTarget* UBTTask_FlyTo::TaskMemoryFromGenericPayload(void* GenericPayloa
 
 	// AFAICT, Behavior tree tasks operate as singletons and internally maintain an instance memory stack which maps instance data for every AI currently running this task.
 	// So the BT Task itself is shared by all AI pawns and does not have sufficient information to handle our result delegate on its own.
-	// Because of this, we use a custom delegate payload (which we passed earlier in "ExecuteTask") to lookup the actual AI owner and the correct NodeMemory 
+	// Because of this, we use a custom delegate payload (which we passed earlier in "ExecuteTask") to lookup the actual AI owner and the correct NodeMemory
 	// inside which we store the pathfinding results.
 
 	auto payload = static_cast<FBT_FlyToTarget_Metadata*> (GenericPayload);
@@ -266,7 +268,7 @@ void UBTTask_FlyTo::Pathfinding_OnFinish(const FDoNNavigationQueryData& Data)
 		return;
 	}
 
-	// If we're a moving target repath, then skip the first index because the first index will generally just be 
+	// If we're a moving target repath, then skip the first index because the first index will generally just be
 	//  from the pawn start to the closest nav voxel and may cause us to move backwards.
 	if (myMemory->isMovingTargetRepath && Data.PathSolutionOptimized.Num() >= 2)
 		myMemory->solutionTraversalIndex = 1;
@@ -284,7 +286,7 @@ void UBTTask_FlyTo::Pathfinding_OnFinish(const FDoNNavigationQueryData& Data)
 		//UE_LOG(DoNNavigationLog, Verbose, TEXT("Segment 0"));
 		IDonNavigator::Execute_OnNextSegment(pawn, myMemory->QueryResults.PathSolutionOptimized[0]);
 	}
-	
+
 }
 
 void UBTTask_FlyTo::Pathfinding_OnDynamicCollisionAlert(const FDonNavigationDynamicCollisionPayload& Data)
@@ -299,10 +301,10 @@ void UBTTask_FlyTo::Pathfinding_OnDynamicCollisionAlert(const FDonNavigationDyna
 
 void UBTTask_FlyTo::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
-	FBT_FlyToTarget* myMemory = (FBT_FlyToTarget*)NodeMemory;	
+	FBT_FlyToTarget* myMemory = (FBT_FlyToTarget*)NodeMemory;
 
 	APawn* pawn = OwnerComp.GetAIOwner()->GetPawn();
-	NavigationManager = UDonNavigationHelper::DonNavigationManagerForActor(pawn);	
+	NavigationManager = UDonNavigationHelper::DonNavigationManagerForActor(pawn);
 
 	if (NavigationManager == nullptr)
 	{
@@ -330,21 +332,21 @@ void UBTTask_FlyTo::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemor
 
 		// Is our path solution no longer valid?
 		if (myMemory->bSolutionInvalidatedByDynamicObstacle)
-		{	
+		{
 			NavigationManager->StopListeningToDynamicCollisionsForPath(myMemory->DynamicCollisionListener, myMemory->QueryResults);
 
 			// Recalculate path (a dynamic obstacle has probably come out of nowhere and invalidated our current solution)
 			EBTNodeResult::Type bRes = SchedulePathfindingRequest(OwnerComp, NodeMemory);
-			if (bRes == EBTNodeResult::Failed) 
+			if (bRes == EBTNodeResult::Failed)
 				FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
-			
+
 			break;
 		}
 
 		if (myMemory->bTargetLocationChanged)
 		{
 			EBTNodeResult::Type bRes = SchedulePathfindingRequest(OwnerComp, NodeMemory);
-			if (bRes == EBTNodeResult::Failed) 
+			if (bRes == EBTNodeResult::Failed)
 				FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 
 			break;
@@ -382,7 +384,7 @@ void UBTTask_FlyTo::TickPathNavigation(UBehaviorTreeComponent& OwnerComp, FBT_Fl
 	const auto& queryResults = MyMemory->QueryResults;
 
 	APawn* pawn = OwnerComp.GetAIOwner()->GetPawn();
-	
+
 	if (DebugParams.bVisualizePawnAsVoxels)
 		NavigationManager->Debug_DrawVoxelCollisionProfile(Cast<UPrimitiveComponent>(pawn->GetRootComponent()));
 
@@ -391,7 +393,7 @@ void UBTTask_FlyTo::TickPathNavigation(UBehaviorTreeComponent& OwnerComp, FBT_Fl
 		HandleTaskFailureAndExit(OwnerComp, (uint8*) (MyMemory)); // observed after recent multi-threading rewrite. Need to watch this branch closely and understand why it occurs!
 		return;
 	}
-	
+
 	FVector deltaToNextNode = queryResults.PathSolutionOptimized[MyMemory->solutionTraversalIndex] - pawn->GetActorLocation();
 	FVector nextNodeDirection = deltaToNextNode.GetSafeNormal();
 
@@ -440,7 +442,7 @@ void UBTTask_FlyTo::TickPathNavigation(UBehaviorTreeComponent& OwnerComp, FBT_Fl
 		{
 			MyMemory->solutionTraversalIndex++;
 
-			// Because we just completed a segment, we should stop listening to collisions on the previous voxel. 
+			// Because we just completed a segment, we should stop listening to collisions on the previous voxel.
 			// If not, a pawn may needlessly recalculate its solution when a obstacle far behind it intrudes on a voxel it has already visited.
 			if (!NavigationManager->bIsUnbound && queryResults.VolumeSolutionOptimized.IsValidIndex(MyMemory->solutionTraversalIndex - 1))
 				NavigationManager->StopListeningToDynamicCollisionsForPathIndex(MyMemory->DynamicCollisionListener, queryResults, MyMemory->solutionTraversalIndex - 1);
@@ -459,9 +461,9 @@ void UBTTask_FlyTo::TickPathNavigation(UBehaviorTreeComponent& OwnerComp, FBT_Fl
 					//UE_LOG(DoNNavigationLog, Verbose, TEXT("Segment %d, %s"), MyMemory->solutionTraversalIndex, *nextPoint.ToString());
 
 					IDonNavigator::Execute_OnNextSegment(pawn, nextPoint);
-				}				
+				}
 			}
-			
+
 		}
 	}
 }
@@ -486,7 +488,7 @@ EBTNodeResult::Type UBTTask_FlyTo::HandleTaskFailure(UBehaviorTreeComponent& Own
 
 	auto myMemory = NodeMemory ? reinterpret_cast<FBT_FlyToTarget*> (NodeMemory) : nullptr;
 	if (!Blackboard)
-		return EBTNodeResult::Failed;	
+		return EBTNodeResult::Failed;
 
 	bool bOverallStatus = false;
 	if (bTeleportToDestinationUponFailure)
@@ -495,7 +497,7 @@ EBTNodeResult::Type UBTTask_FlyTo::HandleTaskFailure(UBehaviorTreeComponent& Own
 		bOverallStatus = TeleportAndExit(OwnerComp, bWrapUpLatentTask);
 	}
 
-	Blackboard->SetValueAsBool(FlightResultKey.SelectedKeyName, false);	
+	Blackboard->SetValueAsBool(FlightResultKey.SelectedKeyName, false);
 	Blackboard->SetValueAsBool(KeyToFlipFlopWhenTaskExits.SelectedKeyName, !Blackboard->GetValueAsBool(KeyToFlipFlopWhenTaskExits.SelectedKeyName));
 
 	if (myMemory->bIsANavigator)
@@ -535,7 +537,7 @@ EBlackboardNotificationResult UBTTask_FlyTo::OnBlackboardValueChange(const UBlac
 	{
 		UE_VLOG(BehaviorComp, LogBehaviorTree, Error, TEXT("BT MoveTo \'%s\' task observing BB entry while no longer being active!"), *GetNodeName());
 
-		// resetting BBObserverDelegateHandle without unregistering observer since 
+		// resetting BBObserverDelegateHandle without unregistering observer since
 		// returning EBlackboardNotificationResult::RemoveObserver here will take care of that for us
 		myMemory->BBObserverDelegateHandle.Reset();
 
@@ -555,7 +557,7 @@ EBlackboardNotificationResult UBTTask_FlyTo::OnBlackboardValueChange(const UBlac
 }
 
 EBTNodeResult::Type UBTTask_FlyTo::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
-{	
+{
 	// safely abort nav task before we leave
 	AbortPathfindingRequest(OwnerComp, NodeMemory);
 
@@ -573,7 +575,7 @@ EBTNodeResult::Type UBTTask_FlyTo::AbortTask(UBehaviorTreeComponent& OwnerComp, 
 FString UBTTask_FlyTo::GetStaticDescription() const
 {
 	FString ReturnDesc = Super::GetStaticDescription();
-	
+
 	ReturnDesc += FString::Printf(TEXT("\n%s: %s \n"), *GET_MEMBER_NAME_CHECKED(UBTTask_FlyTo, FlightGoalKey).ToString(), *FlightGoalKey.SelectedKeyName.ToString());
 	ReturnDesc += FString("\nDebug Visualization:");
 	ReturnDesc += FString::Printf(TEXT("Raw Path: %d \n"), DebugParams.VisualizeRawPath);
@@ -584,7 +586,7 @@ FString UBTTask_FlyTo::GetStaticDescription() const
 
 void UBTTask_FlyTo::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
 {
-	Super::DescribeRuntimeValues(OwnerComp, NodeMemory, Verbosity, Values);	
+	Super::DescribeRuntimeValues(OwnerComp, NodeMemory, Verbosity, Values);
 }
 
 uint16 UBTTask_FlyTo::GetInstanceMemorySize() const

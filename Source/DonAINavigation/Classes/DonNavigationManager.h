@@ -1091,7 +1091,9 @@ public:
 
 	/** Does this actor have an active pathfinding task already scheduled with the navigation manager? */
 	UFUNCTION(BlueprintPure, Category = "DoN Navigation")
-	bool HasTask(AActor* Actor) { return ActiveNavigationTaskOwners.Contains(Actor); }
+	bool HasTask(AActor* Actor) { 
+		return ActiveNavigationTaskOwners.Contains(Actor); 
+	}
 
 
 	/**

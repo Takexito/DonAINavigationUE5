@@ -14,6 +14,10 @@ The plugin provides the following:
 # Sample Project
 There is still is an old [sample project](http://www.drunkonnectar.com/3d-pathfinding-ue4/) to quickly test the system and understand the different usecases it covers.
 
+# Docs
+
+[Docs](http://www.drunkonnectar.com/don-3d-flying-ai-documentation/)
+
 # Overviews and Tutorials
 * [Article describing how to build the plugin from source and apply a basic use case](https://medium.com/anti-clickbait-coalition/3d-pathfinding-in-unreal-engine-9b04f58ca50c?source=friends_link&sk=aeb7269c3c85841f87bb7ca99658c176)
 * [![Youtube video - Overview and Tutorial](http://www.drunkonnectar.com/wp-content/uploads/2016/03/ThumbnailWithYoutubeIcon.jpg)](https://www.youtube.com/watch?v=6Tr_K551zvI)
