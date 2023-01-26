@@ -405,6 +405,7 @@ struct FDoNNavigationQueryData
 	TArray<FDonNavigationVoxel*> VolumeSolution;
 	TArray<FDonNavigationVoxel*> VolumeSolutionOptimized;
 
+	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
 	TArray<FVector> PathSolutionRaw;	
 
 	UPROPERTY(BlueprintReadOnly, Category = "DoN Navigation")
@@ -752,20 +753,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Startup")
 	bool PerformCollisionChecksOnStartup;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "IgnoreInitOnBeginPlay", ExposeOnSpawn = true), Category = "Game Startup")
+	bool IgnoreInitOnBeginPlay;
+
 	// Performance settings - Bound worlds (if multi-threading is enabled, these will be overwritten at BeginPlay with the values in the next section!)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MultiThreadingEnabled", ExposeOnSpawn = true), Category = "Performance Settings")
 	bool bMultiThreadingEnabled = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxPathSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxPathSolverIterationsPerTick = 500;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | SingleThread")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (DisplayName = "MaxCollisionSolverIterationsPerTick", ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | SingleThread")
 	int32 MaxCollisionSolverIterationsPerTick = 250;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxPathSolverIterationsOnThread = 1000;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance Settings | Bound Worlds | Multithreaded")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Performance Settings | Bound Worlds | Multithreaded")
 	int32 MaxCollisionSolverIterationsOnThread = 500;
 
 	// Performance settings - Infinite worlds
@@ -787,6 +791,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void ConstructBuilder();
 	
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Init();
+
+private:
+	bool IsInitilized;
+
+public:
 	// Debug Visualization:
 	UPROPERTY()
 	UBoxComponent* WorldBoundaryVisualizer;
@@ -822,10 +833,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")	
 	void Debug_ClearAllVolumes();
 
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
 	void Debug_RecalculateWorldBounds()
 	{
 		WorldBoundaryVisualizer->SetRelativeLocation(WorldBoundsExtent());
 		WorldBoundaryVisualizer->SetBoxExtent(WorldBoundsExtent());
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "DoN Navigation")
+	void Debug_RefreshWorldboundaryVisibility()
+	{
+		WorldBoundaryVisualizer->SetVisibility(bDisplayWorldBoundary);
 	}
 
 private:
@@ -998,17 +1016,20 @@ public:
 		return VolumeAtSafe(x, y, z);
 	}
 
-	/* Clamps a vector to the navigation bounds as defined by the grid configuration of the navigation object you've placed in the map*/
+	/** Clamps a vector within the navigation bounds, as defined by the grid configuration of the navigation object you've placed in the map,
+	 *   brought in by a margin of InnerMarginOffset when clamping downward to prevent rounding errors */
 	UFUNCTION(BlueprintPure, Category = "DoN Navigation")
-	FVector ClampLocationToNavigableWorld(FVector DesiredLocation)
+	FVector ClampLocationToNavigableWorld(FVector DesiredLocation, float InnerMarginOffset = 0.001f)
 	{
 		if (bIsUnbound)
 			return DesiredLocation;
 
 		FVector origin = GetActorLocation();
-		float xClamped = FMath::Clamp(DesiredLocation.X, origin.X, origin.X + XGridSize * VoxelSize);
-		float yClamped = FMath::Clamp(DesiredLocation.Y, origin.Y, origin.Y + YGridSize * VoxelSize);
-		float zClamped = FMath::Clamp(DesiredLocation.Z, origin.Z, origin.Z + ZGridSize * VoxelSize);
+		// When clamping down, bring the vector in by an extra InnerMarginOffset cm. Necessary because VolumeIdAt does a float-to-int rounding, and thus clamping
+		//  to a max world dimension would otherwise round to an invalid index (e.g. rounding 100.5 to invalid index 100 instead of 99 in a 100-voxel world)
+		float xClamped = FMath::Clamp(DesiredLocation.X, origin.X, origin.X + XGridSize * VoxelSize - InnerMarginOffset);
+		float yClamped = FMath::Clamp(DesiredLocation.Y, origin.Y, origin.Y + YGridSize * VoxelSize - InnerMarginOffset);
+		float zClamped = FMath::Clamp(DesiredLocation.Z, origin.Z, origin.Z + ZGridSize * VoxelSize - InnerMarginOffset);
 
 		return FVector(xClamped, yClamped, zClamped);
 	}

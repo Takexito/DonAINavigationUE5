@@ -38,7 +38,7 @@ ADonNavigationManager::ADonNavigationManager(const FObjectInitializer& ObjectIni
 {
 	// Scene Component
 	SceneComponent = ObjectInitializer.CreateDefaultSubobject<USceneComponent>(this, TEXT("SceneComp"));
-	SceneComponent->Mobility = EComponentMobility::Static;
+	SceneComponent->Mobility = EComponentMobility::Movable;
 	RootComponent = SceneComponent;
 
 	Billboard = ObjectInitializer.CreateDefaultSubobject<UBillboardComponent>(this, TEXT("Billboard"));	
@@ -128,6 +128,9 @@ void ADonNavigationManager::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);	
 
+	if (!IsInitilized)
+		return;
+
 	if (!bMultiThreadingEnabled)
 	{
 		TickScheduledPathfindingTasks(DeltaSeconds, MaxPathSolverIterationsPerTick);
@@ -148,9 +151,8 @@ void ADonNavigationManager::ReceiveAsyncResults()
 	{
 		FDonNavigationQueryTask task;
 		CompletedNavigationTasks.Dequeue(task);
-		task.BroadcastResult();
-
 		ActiveNavigationTaskOwners.Remove(task.Data.Actor.Get());
+		task.BroadcastResult();
 
 #if DEBUG_DoNAI_THREADS
 		auto owner = task.Data.Actor.Get();
@@ -222,6 +224,17 @@ void ADonNavigationManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!IgnoreInitOnBeginPlay)
+	{
+		Init();
+	}
+}
+
+void ADonNavigationManager::Init()
+{
+	if (IsInitilized)
+		return;	
+
 	UWorld* const World = GetWorld();
 
 	if (!World)
@@ -231,7 +244,7 @@ void ADonNavigationManager::BeginPlay()
 	VoxelCollisionShape = FCollisionShape::MakeBox(NavVolumeExtent());
 
 	VoxelCollisionQueryParams = FCollisionQueryParams(FName("DonCollisionQuery", false)); // trace complex = false	
-	VoxelCollisionQueryParams.AddIgnoredActors(ActorsToIgnoreForCollision);	
+	VoxelCollisionQueryParams.AddIgnoredActors(ActorsToIgnoreForCollision);
 
 	VoxelCollisionQueryParams2 = FCollisionQueryParams(VoxelCollisionQueryParams);
 	VoxelCollisionQueryParams2.bFindInitialOverlaps = false;
@@ -252,6 +265,8 @@ void ADonNavigationManager::BeginPlay()
 	// Spawn dedicated worker thread:
 	if (bMultiThreadingEnabled)
 		WorkerThread = new FDonNavigationWorker(this, MaxPathSolverIterationsOnThread, MaxCollisionSolverIterationsOnThread);
+
+	IsInitilized = true;
 }
 
 void ADonNavigationManager::RefreshPerformanceSettings()
@@ -560,7 +575,7 @@ static FString GetMeshAssetName(UPrimitiveComponent* Mesh)
 	if (staticMesh)
 		assetName = staticMesh->GetStaticMesh()->GetName();
 	else if (skeletalMesh)
-		assetName = skeletalMesh->SkeletalMesh->GetName();
+		assetName = skeletalMesh->GetSkeletalMeshAsset()->GetName();
 	
 	return assetName;
 }
@@ -1679,7 +1694,7 @@ FDonNavigationVoxel* ADonNavigationManager::ResolveVolume(FVector &DesiredLocati
 
 				//DrawDebugSphere_Safe(GetWorld(), locationToSample, 6.f, 16, FColor::Yellow, false, 5.f);
 
-				auto volume = VolumeAt(locationToSample);
+				volume = VolumeAt(locationToSample);
 				if (!volume || !CanNavigate(volume))
 					continue;
 
@@ -1951,10 +1966,10 @@ bool ADonNavigationManager::FindPathSolution_StressTesting(AActor* Actor, FVecto
 	// Input Validations - I
 	if (!Actor || !CollisionComponent)
 	{
-		FString actorLog               =  Actor ? *Actor->GetName() : *FString("Invalid");
-		FString collisionComponentLog  =  CollisionComponent ? *CollisionComponent->GetName() : *FString("Invalid");
+		FString actorLog = Actor ? *Actor->GetName() : *FString("Invalid");
+		FString collisionComponentLog = CollisionComponent ? *CollisionComponent->GetName() : *FString("Invalid");
 		UE_LOG(DoNNavigationLog, Error, TEXT("%s"), *FString::Printf(TEXT("Invalid input parameters received. Actor: %s CollisionComponent: %s"), *actorLog, *collisionComponentLog));
-			
+
 		return false;
 	}
 
@@ -1983,33 +1998,56 @@ bool ADonNavigationManager::FindPathSolution_StressTesting(AActor* Actor, FVecto
 
 	uint64 timerVolumeResolution = DoNNavigation::Debug_GetTimer();
 
-	// Resolve origin and destination volumes
-	auto originVolume      = ResolveVolume(Origin,      CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
-	auto destinationVolume = ResolveVolume(Destination, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+	FDonNavigationVoxel* originVolume = NULL;
+	FDonNavigationVoxel* destinationVolume = NULL;
 
-	DoNNavigation::Debug_StopTimer(timerVolumeResolution);	
-	UE_LOG(DoNNavigationLog, Verbose, TEXT("%s"), *FString::Printf(TEXT("Time spent resolving origin and destination volumes - %f seconds"), timerVolumeResolution / 1000.0));	
+	FVector resolvedOriginCenter = VolumeOriginAt(Origin);
+	FVector resolvedDestinationCenter = VolumeOriginAt(Destination);
+
+	bool bResolvedOrigin = false;
+	bool bResolvedDestination = false;
+
+	if (!bIsUnbound)
+	{
+		// Resolve origin and destination volumes
+		originVolume = ResolveVolume(Origin, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+		destinationVolume = ResolveVolume(Destination, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+
+		// Input Visualization - II
+		if (DebugParams.DrawDebugVolumes)
+		{
+			if (originVolume)
+				DrawDebugVoxel_Safe(GetWorld(), originVolume->Location, NavVolumeExtent(), FColor::White, false, 0.13f, 0, DebugVoxelsLineThickness);
+
+			if (destinationVolume)
+				DrawDebugVoxel_Safe(GetWorld(), destinationVolume->Location, NavVolumeExtent(), FColor::Green, false, 0.13f, 0, DebugVoxelsLineThickness);
+		}
+	}
+	else
+	{
+		bResolvedOrigin = ResolveVector(Origin, resolvedOriginCenter, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+		bResolvedDestination = ResolveVector(Destination, resolvedDestinationCenter, CollisionComponent, QueryParams.bFlexibleOriginGoal, QueryParams.CollisionShapeInflation);
+	}
 
 	// Input Validations - II
-	if (!originVolume || !destinationVolume)
+	if ((!bIsUnbound && (!originVolume || !destinationVolume)) || (bIsUnbound && (!bResolvedOrigin || !bResolvedDestination)))
 	{
 		InvalidVolumeErrorLog(originVolume, destinationVolume, Origin, Destination);
 
 		return false;
 	}
-	else
+
+	// Flexible Origin adaptation:
+	if (Origin != Actor->GetActorLocation())
 	{
-		if (Origin != Actor->GetActorLocation())
-		{
-			UE_LOG(DoNNavigationLog, Warning, TEXT("Forcibly shifting %s's pathfinding origin to new origin %s for viable pathfinding. (Can be disabled in QueryParams)"), *Actor->GetName());
-			 Actor->SetActorLocation(Origin, false); // New design: We no longer teleport the pawn. If all our calculations have gone right the pawn should be free to travel to the new origin.
-		}
+		UE_LOG(DoNNavigationLog, Warning, TEXT("Forcibly moving %s to new origin for viable pathfinding. (Can be disabled in QueryParams)"), *Actor->GetName());
+		Actor->SetActorLocation(Origin, false);
 	}
 
 	// Input Visualization - II
 	if (DebugParams.DrawDebugVolumes)
 	{
-		DrawDebugVoxel_Safe(GetWorld(), originVolume->Location,      NavVolumeExtent(), FColor::White, false, 0.13f, 0, DebugVoxelsLineThickness);
+		DrawDebugVoxel_Safe(GetWorld(), originVolume->Location, NavVolumeExtent(), FColor::White, false, 0.13f, 0, DebugVoxelsLineThickness);
 		DrawDebugVoxel_Safe(GetWorld(), destinationVolume->Location, NavVolumeExtent(), FColor::Green, false, 0.13f, 0, DebugVoxelsLineThickness);
 	}
 
@@ -2019,31 +2057,22 @@ bool ADonNavigationManager::FindPathSolution_StressTesting(AActor* Actor, FVecto
 	auto voxelCollisionProfile = GetVoxelCollisionProfileFromMesh(FDonMeshIdentifier(CollisionComponent), bResultIsValid, VoxelCollisionProfileCache_GameThread, bIgnoreMeshOriginOccupancy);
 
 	uint64 timerPathfinding = DoNNavigation::Debug_GetTimer();
-	
+
 	FDonNavigationQueryTask synchronousTask = FDonNavigationQueryTask(
-		FDoNNavigationQueryData(Actor, CollisionComponent, Origin, Destination, QueryParams, DebugParams, originVolume, destinationVolume, originVolume->Location, destinationVolume->Location, voxelCollisionProfile),
+		FDoNNavigationQueryData(Actor, CollisionComponent, Origin, Destination, QueryParams, DebugParams, originVolume, destinationVolume, resolvedOriginCenter, resolvedDestinationCenter, voxelCollisionProfile),
 		FDoNNavigationResultHandler(),
 		FDonNavigationDynamicCollisionDelegate()
-		);
+	);
 
 	auto& data = synchronousTask.Data;
-
+	float timeSpend = 0;
 	// Core pathfinding algorithm
-	while (!data.Frontier.empty())
+	while (!data.bGoalFound && timeSpend <= QueryParams.QueryTimeout)
 	{
-		auto currentVolume = data.Frontier.get(); // the current volume is the "best neighbor" (highest priority) of the previous volume
-
-		if (currentVolume == destinationVolume)
-		{	
-			data.bGoalFound = true;
-			break;
-		}
-		
-		const auto& neighbors = FindOrSetupNeighborsForVolume(currentVolume);
-		for (auto neighbor : neighbors)
-		{	
-			ExpandFrontierTowardsTarget(synchronousTask, currentVolume, neighbor);
-		}
+		uint64 timeoutTimer = DoNNavigation::Debug_GetTimer();
+		TickNavigationSolver(synchronousTask);
+		DoNNavigation::Debug_StopTimer(timeoutTimer);
+		timeSpend += timeoutTimer / 1000.0;
 	}
 
 	// Goal validation:
@@ -2056,15 +2085,16 @@ bool ADonNavigationManager::FindPathSolution_StressTesting(AActor* Actor, FVecto
 	}
 
 	// Translate volume path solution to vector path solution:
-	TArray<FDonNavigationVoxel*> volumeSolution;
-	data.bGoalFound = PathSolutionFromVolumeTrajectoryMap(originVolume, destinationVolume, data.VolumeVsGoalTrajectoryMap, volumeSolution, PathSolutionRaw, Origin, Destination, DebugParams);
+
+	data.bGoalFound = PrepareSolution(synchronousTask);
 	if (!data.bGoalFound)
 	{
 		UE_LOG(DoNNavigationLog, Error, TEXT("%s"), *FString::Printf(TEXT("Goal not found among %d goal trajectory nodes"), data.VolumeVsGoalTrajectoryMap.Num()));
 
 		return false;
 	}
-
+	
+	PathSolutionRaw.Append(data.PathSolutionRaw);//synchronousTask.PathSolutionRaw.Num());
 	// Log time spent:
 	DoNNavigation::Debug_StopTimer(timerPathfinding);
 	FString calcTime1 = FString::Printf(TEXT("[DoN Navigation]Time spent calculating best path volumes - %f seconds"), timerPathfinding / 1000.0);
@@ -2098,7 +2128,7 @@ bool ADonNavigationManager::SchedulePathfindingTask(AActor* Actor, FVector Desti
 
 	if (!bIsUnbound && !IsLocationWithinNavigableWorld(Destination))
 	{
-		UE_LOG(DoNNavigationLog, Error, TEXT("Destination %s is outside world bounds. Please clamp your destination within the navigable world or expand world size under settings if necessary."), *Destination.ToString());
+		//UE_LOG(DoNNavigationLog, Error, TEXT("Destination %s is outside world bounds. Please clamp your destination within the navigable world or expand world size under settings if necessary."), *Destination.ToString());
 
 		return false;
 	}
@@ -2836,7 +2866,7 @@ FVector ADonNavigationManager::FindRandomPointAroundOriginInNavWorld(AActor* Nav
 	for (int32 i = 0; i < MaxAttempts; i++)
 	{
 		float maxZAngularDispacement = FMath::Abs(MaxZAngularDispacement);
-		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0, 360), FMath::FRandRange(0, 360));
+		FRotator newDirection = FRotator(FMath::FRandRange(-maxZAngularDispacement, maxZAngularDispacement), FMath::FRandRange(0.f, 360.f), FMath::FRandRange(0.f, 360.f));
 		newDestination = Origin + newDirection.RotateVector(baseDisplacement);
 
 		if (MaxDesiredAltitude != -1.f)
